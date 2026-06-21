@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Progressly</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0f0a">
+<!-- iOS home-screen app -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Progressly">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0f0a;color:#e8f0e8;font-family:system-ui,sans-serif;padding:max(20px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom));min-width:340px}
+.hero{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;will-change:opacity,transform}
+.hero-title{font-size:clamp(44px,10vw,104px);font-weight:800;color:#e8f0e8;letter-spacing:.03em;line-height:1}
+.hero-sub{font-size:clamp(12px,2.5vw,18px);font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#2d7a2d}
+.scroll-cue{position:absolute;bottom:30px;color:#2d5a2d;font-size:11px;letter-spacing:.15em;text-transform:uppercase;animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(7px);opacity:1}}
+.scroll-stage{perspective:1200px;perspective-origin:top center;margin-bottom:40px}
+.scroll-card{transform-origin:top center;will-change:transform}
+.layout{display:flex;gap:16px;align-items:flex-start;max-width:1100px;margin:0 auto}
+.main-col{flex:1;min-width:0}
+.side-col{width:300px;flex-shrink:0;margin-top:104px}
+@media(max-width:760px){.layout{flex-direction:column}.side-col{width:100%;margin-top:0}}
+@media(max-width:760px){.layout{flex-direction:column}.side-col{width:100%}}
+/* schedule */
+.sched-card{background:#0f1a0f;border:.5px solid #1a2a1a;border-radius:10px;padding:0;overflow:hidden}
+.sched-head{padding:14px 16px;border-bottom:.5px solid #1a2a1a;display:flex;align-items:center;gap:8px}
+.sched-head .dot{width:11px;height:11px;background:#2d7a2d;border-radius:2px;flex-shrink:0}
+.sched-head .title{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8ab08a}
+.sched-cols{display:grid;grid-template-columns:90px 1fr;font-size:10px;color:#4a7a4a;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;border-bottom:.5px solid #1a2a1a}
+.sched-row{display:grid;grid-template-columns:90px 1fr;border-bottom:.5px solid #141f14;min-height:40px;align-items:stretch}
+.sched-row:last-child{border-bottom:none}
+.sched-time{font-size:11px;color:#6a9a6a;padding:10px 16px;background:#0c150c;display:flex;align-items:center}
+.sched-act{font-size:12px;color:#c8e0c8;padding:10px 12px;outline:none;display:flex;align-items:center;cursor:text;min-height:40px}
+.sched-act:empty:before{content:'–';color:#2d5a2d}
+.sched-act:focus{background:#101a10}
+.editable{cursor:text;border-bottom:1px dashed transparent;transition:border-color .2s;outline:none;display:inline-block}
+.editable:hover{border-bottom-color:#2d5a2d}
+.editable:focus{border-bottom-color:#3a9a3a}
+.card{background:#0f1a0f;border:.5px solid #1a2a1a;border-radius:12px;padding:16px;animation:fadeUp .5s cubic-bezier(.2,.7,.2,1) both}
+.card:nth-child(2){animation-delay:.05s}
+.card:nth-child(3){animation-delay:.1s}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+.section-label{font-size:10px;color:#4a7a4a;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px}
+.top-row{display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:12px;align-items:stretch}
+.habit-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:.5px solid #1a2a1a;cursor:pointer;user-select:none;transition:opacity .2s,transform .12s}
+.habit-row:active{transform:scale(.99)}
+.habit-row:last-child{border-bottom:none}
+.habit-row.done{opacity:.4}
+.check{width:20px;height:20px;border-radius:6px;border:1.5px solid #2d5a2d;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s cubic-bezier(.2,.7,.2,1),border-color .2s,transform .2s}
+.habit-row.done .check{background:#2d7a2d;border-color:#2d7a2d;transform:scale(1.05)}
+.check svg{opacity:0;transition:opacity .15s}
+.habit-row.done .check svg{opacity:1}
+.habit-emoji{font-size:17px;width:24px;text-align:center;flex-shrink:0}
+.habit-name{flex:1;font-size:14px;color:#c8e0c8}
+.edit-btn{opacity:0;font-size:11px;color:#4a7a4a;background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:4px;transition:opacity .15s;flex-shrink:0}
+.habit-row:hover .edit-btn{opacity:1}
+/* origin-fill hover effect on the habit text/area (not the checkbox) */
+.habit-fill{position:relative;flex:1;display:flex;align-items:center;gap:10px;min-width:0;overflow:hidden;border-radius:10px;padding:8px 10px;color:#c8e0c8;transition:color .3s cubic-bezier(.16,1,.3,1)}
+.habit-fill .fill-circle{position:absolute;left:50%;top:50%;width:0;height:0;border-radius:50%;background:#2d7a2d;transform:translate(-50%,-50%) scale(0);transition:transform .5s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:0}
+.habit-fill.filled .fill-circle{transform:translate(-50%,-50%) scale(1)}
+.habit-fill .habit-emoji,.habit-fill .habit-name{position:relative;z-index:1}
+.habit-fill.filled .habit-name{color:#06120a}
+.prog-wrap{height:2px;background:#1a2a1a;border-radius:2px;margin-bottom:16px;overflow:hidden}
+.prog-bar{height:100%;background:#2d7a2d;border-radius:2px;transition:width .4s cubic-bezier(.4,0,.2,1)}
+.day-pct{font-size:12px;color:#4a7a4a;margin-bottom:8px}
+.weeks-row{display:grid;gap:8px}
+.week-card{background:#0f1a0f;border:.5px solid #1a2a1a;border-radius:10px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.week-title{font-size:9px;color:#4a7a4a;letter-spacing:.08em;text-transform:uppercase;text-align:center}
+.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat-card{background:#0f1a0f;border:.5px solid #1a2a1a;border-radius:10px;padding:14px}
+.stat-label{font-size:10px;color:#4a7a4a;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.stat-value{font-size:26px;font-weight:500;color:#2d9a2d}
+.stat-sub{font-size:10px;color:#4a7a4a;margin-top:2px}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#111a11;border:.5px solid #2a3a2a;border-radius:12px;padding:22px;width:290px}
+.modal h3{font-size:13px;font-weight:500;color:#8ab08a;margin-bottom:14px}
+.modal input{background:#0a0f0a;border:.5px solid #2a3a2a;border-radius:6px;color:#e8f0e8;padding:8px 11px;font-size:13px;margin-bottom:9px;outline:none}
+.modal input:focus{border-color:#2d7a2d}
+.modal-btns{display:flex;gap:8px;margin-top:2px}
+.modal-btns button{flex:1;padding:8px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:none;transition:background .15s}
+.btn-save{background:#2d7a2d;color:#e8f0e8}.btn-save:hover{background:#3a9a3a}
+.btn-cancel{background:#1a2a1a;color:#8ab08a}.btn-cancel:hover{background:#253525}
+.btn-remove{background:#2a1a1a;color:#a05050}
+#lineChartWrap{position:relative;width:100%;height:90px}
+/* passcode + shader gate */
+#gate{position:fixed;inset:0;z-index:1000;background:#0a0f0a;display:flex;align-items:center;justify-content:center;overflow:hidden;transition:opacity .85s ease}
+#gate.hide{opacity:0;pointer-events:none}
+#gateCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.gate-fade{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(circle at 50% 45%,rgba(10,15,10,0) 0%,rgba(10,15,10,.55) 70%,rgba(10,15,10,.92) 100%)}
+.gate-content{position:relative;z-index:2;width:100%;max-width:360px;padding:24px;text-align:center}
+.gate-logo{font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#2d7a2d;margin-bottom:18px}
+.gate-title{font-size:clamp(28px,7vw,38px);font-weight:800;letter-spacing:.02em;color:#e8f0e8;line-height:1.1;margin-bottom:6px}
+.gate-sub{font-size:15px;color:rgba(232,240,232,.55);font-weight:300;margin-bottom:30px}
+.code-box{display:flex;align-items:center;justify-content:center;gap:2px;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:16px 14px;background:rgba(255,255,255,.03);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.code-box.err{animation:gshake .4s}
+@keyframes gshake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+.code-digit{width:28px;text-align:center;font-size:22px;background:transparent;border:none;color:#e8f0e8;outline:none;caret-color:#2d9a2d;-webkit-text-security:disc;text-security:disc}
+.code-sep{color:rgba(255,255,255,.18);font-size:18px}
+.gate-msg{min-height:18px;font-size:12.5px;color:#c47070;margin-top:16px;transition:color .2s}
+.gate-reset{margin-top:28px;font-size:11px;color:rgba(232,240,232,.32);cursor:pointer;text-decoration:underline;user-select:none}
+.gate-reset:hover{color:rgba(232,240,232,.6)}
+body.locked{overflow:hidden;height:100vh}
+</style>
+</head>
+<body>
+
+<!-- PASSCODE + SHADER GATE -->
+<div id="gate">
+  <canvas id="gateCanvas"></canvas>
+  <div class="gate-fade"></div>
+  <div class="gate-content">
+    <div class="gate-logo">Progressly imperfect</div>
+    <div class="gate-title" id="gateTitle">Progressly</div>
+    <div class="gate-sub" id="gateSub">Enter your passcode</div>
+    <div class="code-box" id="codeBox"></div>
+    <div class="gate-msg" id="gateMsg"></div>
+    <div class="gate-reset" id="gateReset" style="display:none">Forgot passcode? Reset</div>
+  </div>
+</div>
+
+<!-- HERO INTRO -->
+<div class="hero" id="hero">
+  <div class="hero-sub">Progressly imperfect</div>
+  <div class="hero-title">Progressly</div>
+  <div class="scroll-cue">scroll to begin ↓</div>
+</div>
+
+<div class="scroll-stage"><div class="scroll-card" id="scrollCard">
+<div class="layout">
+<div class="main-col">
+
+<!-- HEADER -->
+<div style="margin-bottom:20px">
+  <div style="font-size:26px;font-weight:800;color:#e8f0e8;letter-spacing:.04em;margin-bottom:4px">Progressly</div>
+  <div style="font-size:11px;font-weight:700;color:#2d7a2d;letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px">Progressly imperfect</div>
+  <div style="display:flex;align-items:baseline;gap:10px">
+    <span style="font-size:28px;font-weight:500;color:#8ab08a" class="editable" id="monthLabel" contenteditable="true">june</span>
+    <span style="font-size:13px;color:#4a7a4a" class="editable" id="yearLabel" contenteditable="true">2026</span>
+  </div>
+</div>
+
+<!-- CLEAR BTN -->
+<div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+  <button id="clearBtn" style="font-size:11px;color:#4a7a4a;background:none;border:.5px solid #2a3a2a;border-radius:6px;padding:4px 10px;cursor:pointer;">clear data</button>
+</div>
+
+<!-- TOP ROW: line chart + today ring -->
+<div class="top-row" style="margin-bottom:12px">
+  <div class="card">
+    <div class="section-label">progress over time</div>
+    <div id="lineChartWrap"><canvas id="lineChart"></canvas></div>
+  </div>
+  <div class="card" style="width:120px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+    <div class="section-label" style="text-align:center">today</div>
+    <canvas id="dailyRing" width="80" height="80"></canvas>
+    <div id="dailyRingPct" style="font-size:18px;font-weight:500;color:#2d9a2d;margin-top:4px">0%</div>
+  </div>
+</div>
+
+<!-- HABITS -->
+<div class="card" style="margin-bottom:12px">
+  <div class="prog-wrap"><div class="prog-bar" id="dayBar"></div></div>
+  <div class="day-pct" id="dayPct">0% today</div>
+  <div id="habitList"></div>
+</div>
+
+<!-- WEEKLY RINGS -->
+<div class="card" style="margin-bottom:12px">
+  <div class="section-label">weekly progress</div>
+  <div class="weeks-row" id="weeksRow"></div>
+</div>
+
+<!-- STATS -->
+<div class="stats-row">
+  <div class="stat-card"><div class="stat-label">this month</div><div class="stat-value" id="monthPct">—</div><div class="stat-sub" id="monthSub"></div></div>
+  <div class="stat-card"><div class="stat-label">this year</div><div class="stat-value" id="yearPct">—</div><div class="stat-sub" id="yearSub"></div></div>
+</div>
+
+</div><!-- /main-col -->
+
+<!-- SIDE: SCHEDULE -->
+<div class="side-col">
+  <div class="sched-card">
+    <div class="sched-head"><div class="dot"></div><div class="title">Today's Schedule</div></div>
+    <div class="sched-cols"><div>Time</div><div>Activity</div></div>
+    <div id="schedRows"></div>
+  </div>
+</div>
+
+</div><!-- /layout -->
+</div></div><!-- /scroll-card /scroll-stage -->
+
+<!-- MODAL -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3>edit habit</h3>
+    <div style="display:flex;gap:8px">
+      <input id="editEmoji" placeholder="emoji" maxlength="4" style="width:64px">
+      <input id="editName" placeholder="habit name" style="flex:1">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" id="btnCancel">cancel</button>
+      <button class="btn-remove" id="btnRemove">remove</button>
+      <button class="btn-save" id="btnSave">save</button>
+    </div>
+  </div>
+</div>
+
+<script src="chart.umd.js"></script>
+<script>
+const STORE='habitApp_v3';
+const DEFAULTS=[
+  {emoji:'💧',name:'drink water'},{emoji:'🏃',name:'exercise'},
+  {emoji:'📖',name:'read'},{emoji:'🧘',name:'meditate'},
+  {emoji:'🥗',name:'eat well'},{emoji:'😴',name:'sleep 8hrs'},
+  {emoji:'📝',name:'journal'},{emoji:'🚶',name:'walk outside'},
+  {emoji:'📵',name:'no phone 1hr'},{emoji:'🎯',name:'focus work'},
+];
+function todayStr(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function load(){try{return JSON.parse(localStorage.getItem(STORE))||{};}catch{return {};}}
+function save(){localStorage.setItem(STORE,JSON.stringify(app));}
+let app=load();
+if(!app.habits)app.habits=DEFAULTS.map(h=>({...h}));
+if(!app.history)app.history={};
+const today=todayStr();
+// reset schedule on a new day
+if(app.schedDate!==today){app.schedule={};app.schedDate=today;}
+if(!app.history[today])app.history[today]={done:new Array(app.habits.length).fill(false),pct:0};
+function calcPct(arr){return arr.length?Math.round(arr.filter(Boolean).length/arr.length*100):0;}
+
+function drawDonut(canvas,pct,color,bg,size,lw){
+  const ctx=canvas.getContext('2d');
+  canvas.width=size;canvas.height=size;
+  const r=size/2-lw/2,cx=size/2,cy=size/2;
+  function frame(p){
+    ctx.clearRect(0,0,size,size);
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle=bg;ctx.lineWidth=lw;ctx.stroke();
+    if(p>0){ctx.beginPath();ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+(Math.PI*2*p/100));ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineCap='round';ctx.stroke();}
+  }
+  // animate fill 0 -> pct
+  const start=performance.now(),dur=650;
+  function step(now){
+    const t=Math.min((now-start)/dur,1);
+    const eased=1-Math.pow(1-t,3);
+    frame(pct*eased);
+    if(t<1)requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function updateDayPct(){
+  const pct=calcPct(app.history[today].done);
+  app.history[today].pct=pct;
+  document.getElementById('dayPct').textContent=pct+'% today';
+  document.getElementById('dayBar').style.width=pct+'%';
+  document.getElementById('dailyRingPct').textContent=pct+'%';
+  drawDonut(document.getElementById('dailyRing'),pct,'#2d7a2d','#1a2a1a',80,10);
+}
+
+function renderHabits(){
+  const list=document.getElementById('habitList');list.innerHTML='';
+  app.habits.forEach((h,i)=>{
+    const done=app.history[today].done[i];
+    const row=document.createElement('div');
+    row.className='habit-row'+(done?' done':'');
+    row.innerHTML=`<div class="check"><svg width="10" height="8" viewBox="0 0 10 8"><polyline points="1,4 3.5,6.5 9,1" stroke="#e8f0e8" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="habit-fill"><span class="fill-circle"></span><div class="habit-emoji">${h.emoji}</div><div class="habit-name">${h.name}</div></div><button class="edit-btn" data-i="${i}">edit</button>`;
+    row.addEventListener('click',e=>{
+      if(e.target.classList.contains('edit-btn'))return;
+      app.history[today].done[i]=!app.history[today].done[i];
+      save();renderHabits();updateDayPct();updateStats();updateWeeks();updateLineChart();
+    });
+    row.querySelector('.edit-btn').addEventListener('click',e=>{e.stopPropagation();openModal(i);});
+    // origin-fill hover effect (expands from pointer position)
+    const fill=row.querySelector('.habit-fill');
+    const circle=fill.querySelector('.fill-circle');
+    const cover=(x,y,w,h)=>Math.ceil(2*Math.max(Math.hypot(x,y),Math.hypot(w-x,y),Math.hypot(x,h-y),Math.hypot(w-x,h-y)));
+    const setOrigin=e=>{const r=fill.getBoundingClientRect();const x=e.clientX-r.left,y=e.clientY-r.top;const d=cover(x,y,r.width,r.height);circle.style.left=x+'px';circle.style.top=y+'px';circle.style.width=d+'px';circle.style.height=d+'px';};
+    fill.addEventListener('pointerenter',e=>{setOrigin(e);fill.classList.add('filled');});
+    fill.addEventListener('pointerdown',e=>{setOrigin(e);fill.classList.add('filled');});
+    fill.addEventListener('pointerleave',()=>fill.classList.remove('filled'));
+    list.appendChild(row);
+  });
+  const addRow=document.createElement('div');
+  addRow.style.cssText='display:flex;align-items:center;gap:10px;padding:9px 0;cursor:pointer;opacity:.5;transition:opacity .15s';
+  addRow.innerHTML='<div style="width:20px;height:20px;border-radius:5px;border:1.5px dashed #2d5a2d;display:flex;align-items:center;justify-content:center;font-size:14px;color:#2d7a2d;flex-shrink:0">+</div><div style="font-size:13px;color:#4a7a4a">add habit</div>';
+  addRow.addEventListener('mouseenter',()=>addRow.style.opacity='1');
+  addRow.addEventListener('mouseleave',()=>addRow.style.opacity='.5');
+  addRow.addEventListener('click',()=>{
+    app.habits.push({emoji:'⭐',name:'new habit'});
+    Object.values(app.history).forEach(v=>{if(v.done.length<app.habits.length)v.done.push(false);});
+    save();renderHabits();updateDayPct();updateStats();
+    openModal(app.habits.length-1);
+  });
+  list.appendChild(addRow);
+  updateDayPct();
+}
+
+let editIdx=null;
+function openModal(i){editIdx=i;document.getElementById('editEmoji').value=app.habits[i].emoji;document.getElementById('editName').value=app.habits[i].name;document.getElementById('btnRemove').textContent='remove';document.getElementById('btnRemove').dataset.confirm='0';document.getElementById('modal').classList.add('open');document.getElementById('editName').focus();}
+document.getElementById('btnCancel').addEventListener('click',()=>document.getElementById('modal').classList.remove('open'));
+document.getElementById('btnSave').addEventListener('click',()=>{
+  const em=document.getElementById('editEmoji').value.trim()||app.habits[editIdx].emoji;
+  const nm=document.getElementById('editName').value.trim()||app.habits[editIdx].name;
+  app.habits[editIdx]={emoji:em,name:nm};save();
+  document.getElementById('modal').classList.remove('open');renderHabits();
+});
+document.getElementById('btnRemove').addEventListener('click',()=>{
+  if(app.habits.length<=1)return;
+  const btn=document.getElementById('btnRemove');
+  if(btn.dataset.confirm==='1'){
+    app.habits.splice(editIdx,1);
+    Object.values(app.history).forEach(v=>v.done.splice(editIdx,1));
+    save();document.getElementById('modal').classList.remove('open');
+    btn.dataset.confirm='0';btn.textContent='remove';
+    renderHabits();updateDayPct();updateStats();updateWeeks();
+  } else {
+    btn.dataset.confirm='1';btn.textContent='tap again to confirm';btn.style.background='#3a1a1a';
+    setTimeout(()=>{btn.dataset.confirm='0';btn.textContent='remove';btn.style.background='#2a1a1a';},3000);
+  }
+});
+document.getElementById('modal').addEventListener('click',e=>{if(e.target===document.getElementById('modal'))document.getElementById('modal').classList.remove('open');});
+
+document.getElementById('clearBtn').addEventListener('click',()=>{
+  const btn=document.getElementById('clearBtn');
+  if(btn.dataset.confirm==='1'){
+    localStorage.removeItem(STORE);
+    app={habits:DEFAULTS.map(h=>({...h})),history:{}};
+    app.history[today]={done:new Array(10).fill(false),pct:0};
+    save();renderHabits();updateDayPct();updateStats();updateWeeks();
+    if(lineChart){lineChart.data.datasets[0].data=new Array(30).fill(null);lineChart.update('none');}
+    btn.dataset.confirm='0';btn.textContent='clear data';
+  } else {
+    btn.dataset.confirm='1';btn.textContent='tap again to confirm';
+    setTimeout(()=>{btn.dataset.confirm='0';btn.textContent='clear data';},3000);
+  }
+});
+
+function getWeeksOfMonth(){
+  const now=new Date();const yr=now.getFullYear(),mo=now.getMonth();
+  const daysInMonth=new Date(yr,mo+1,0).getDate();
+  const weeks=[];let day=1;
+  while(day<=daysInMonth){
+    const start=new Date(yr,mo,day);
+    const end=new Date(yr,mo,Math.min(day+6,daysInMonth));
+    weeks.push({start,end});day+=7;
+  }
+  return weeks;
+}
+
+function getWeekPct(start,end){
+  const now=new Date();let total=0,count=0;
+  const d=new Date(start);
+  while(d<=end&&d<=now){
+    const s=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const entry=app.history[s];
+    if(entry){total+=entry.pct||calcPct(entry.done);count++;}
+    d.setDate(d.getDate()+1);
+  }
+  return count?Math.round(total/count):0;
+}
+
+function updateWeeks(){
+  const weeks=getWeeksOfMonth();
+  const container=document.getElementById('weeksRow');
+  container.style.gridTemplateColumns=`repeat(${Math.min(weeks.length,6)},1fr)`;
+  container.innerHTML='';
+  weeks.forEach((w,i)=>{
+    const pct=getWeekPct(w.start,w.end);
+    const s=w.start.getDate(),e=w.end.getDate();
+    const div=document.createElement('div');div.className='week-card';
+    const cid='wring'+i;
+    div.innerHTML=`<div class="week-title">week ${i+1}<br><span style="font-size:8px;color:#2d5a2d">${s}–${e}</span></div><canvas id="${cid}" width="64" height="64"></canvas><div style="font-size:13px;font-weight:500;color:#2d9a2d">${pct}%</div>`;
+    container.appendChild(div);
+    setTimeout(()=>drawDonut(document.getElementById(cid),pct,'#2d7a2d','#1a2a1a',64,8),0);
+  });
+}
+
+function getLast30Days(){
+  const days=[];
+  for(let i=29;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const s=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const entry=app.history[s];
+    days.push(entry?entry.pct||calcPct(entry.done):null);
+  }
+  return days;
+}
+
+let lineChart;
+function updateLineChart(){
+  const data=getLast30Days();
+  if(lineChart){lineChart.data.datasets[0].data=data;lineChart.update('none');return;}
+  lineChart=new Chart(document.getElementById('lineChart'),{
+    type:'line',
+    data:{labels:Array.from({length:30},(_,i)=>i+1),datasets:[{data,borderColor:'#2d7a2d',borderWidth:1.5,pointRadius:0,tension:0.4,fill:true,backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,90);g.addColorStop(0,'rgba(45,122,45,0.35)');g.addColorStop(1,'rgba(45,122,45,0.02)');return g;},spanGaps:true}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false,min:0,max:100}},animation:{duration:400}}
+  });
+}
+
+function updateStats(){
+  const now=new Date();
+  const yr=now.getFullYear(),mo=now.getMonth()+1;
+  const moStr=String(mo).padStart(2,'0');
+  const dayOfYear=Math.floor((now-new Date(yr,0,0))/(1000*60*60*24));
+  const daysInMonth=new Date(yr,mo,0).getDate();
+  const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let moDays=0,moTotal=0,yrDays=0,yrTotal=0;
+  Object.entries(app.history).forEach(([k,v])=>{
+    const pct=v.pct||calcPct(v.done);
+    const kDate=new Date(k);
+    if(kDate<=now){
+      if(k.startsWith(`${yr}-${moStr}`)){moDays++;moTotal+=pct;}
+      if(k.startsWith(`${yr}-`)){yrDays++;yrTotal+=pct;}
+    }
+  });
+  const moAvg=moDays?Math.round(moTotal/moDays):null;
+  const yrAvg=yrDays?Math.round(yrTotal/yrDays):null;
+  document.getElementById('monthPct').textContent=moAvg!==null?moAvg+'%':'—';
+  document.getElementById('monthSub').textContent=moAvg!==null?`${moDays} of ${daysInMonth} days tracked in ${monthNames[mo-1]}`:'no data yet';
+  document.getElementById('yearPct').textContent=yrAvg!==null?yrAvg+'%':'—';
+  document.getElementById('yearSub').textContent=yrAvg!==null?`${yrDays} of ${dayOfYear} days tracked in ${yr}`:'no data yet';
+}
+
+const SCHED_SLOTS=['4:00 – 6:00','6:00 – 7:00','7:00 – 8:00','8:00 – 9:00','9:00 – 10:00','10:00 – 11:00','11:00 – 12:00','12:00 – 13:00','13:00 – 14:00','14:00 – 15:00','15:00 – 16:00','16:00 – 17:00','17:00 – 18:00','18:00 – 19:00','19:00 – 20:00','20:00 – 22:00'];
+
+function renderSchedule(){
+  const container=document.getElementById('schedRows');
+  if(!app.schedule)app.schedule={};
+  container.innerHTML='';
+  SCHED_SLOTS.forEach((slot,i)=>{
+    const row=document.createElement('div');
+    row.className='sched-row';
+    const val=app.schedule[i]||'';
+    row.innerHTML=`<div class="sched-time">${slot}</div><div class="sched-act" contenteditable="true" data-i="${i}">${val}</div>`;
+    const act=row.querySelector('.sched-act');
+    act.addEventListener('blur',()=>{app.schedule[i]=act.textContent.trim();save();});
+    container.appendChild(row);
+  });
+}
+
+drawDonut(document.getElementById('dailyRing'),0,'#2d7a2d','#1a2a1a',80,10);
+renderHabits();updateStats();updateWeeks();renderSchedule();setTimeout(updateLineChart,0);save();
+
+// scroll-driven intro animation
+const hero=document.getElementById('hero');
+const scrollCard=document.getElementById('scrollCard');
+function onScroll(){
+  const h=window.innerHeight;
+  const y=window.scrollY||window.pageYOffset;
+  const p=Math.min(Math.max(y/(h*0.75),0),1);
+  const rot=18*(1-p);
+  const scale=0.94+0.06*p;
+  scrollCard.style.transform=`rotateX(${rot}deg) scale(${scale})`;
+  hero.style.opacity=String(Math.max(1-p*1.2,0));
+  hero.style.transform=`translateY(${-y*0.25}px)`;
+}
+window.addEventListener('scroll',onScroll,{passive:true});
+onScroll();
+
+// register service worker for offline / installable app
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+
+<!-- PASSCODE + SHADER GATE LOGIC -->
+<script>
+(function(){
+  const LOCK='progressly_lock';
+  const gate=document.getElementById('gate');
+  const titleEl=document.getElementById('gateTitle');
+  const subEl=document.getElementById('gateSub');
+  const box=document.getElementById('codeBox');
+  const msg=document.getElementById('gateMsg');
+  const resetEl=document.getElementById('gateReset');
+  document.body.classList.add('locked');
+
+  // ---- 6 digit inputs ----
+  const inputs=[];
+  for(let i=0;i<6;i++){
+    const inp=document.createElement('input');
+    inp.className='code-digit';inp.inputMode='numeric';inp.maxLength=1;
+    inp.setAttribute('autocomplete','off');inp.setAttribute('pattern','[0-9]*');
+    box.appendChild(inp);inputs.push(inp);
+    if(i<5){const s=document.createElement('span');s.className='code-sep';s.textContent='·';box.appendChild(s);}
+    inp.addEventListener('input',()=>{
+      inp.value=inp.value.replace(/[^0-9]/g,'').slice(0,1);
+      if(inp.value&&i<5)inputs[i+1].focus();
+      if(getCode().length===6)onComplete();
+    });
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Backspace'&&!inp.value&&i>0){inputs[i-1].focus();inputs[i-1].value='';e.preventDefault();}
+    });
+  }
+  const getCode=()=>inputs.map(x=>x.value).join('');
+  const clearCode=()=>{inputs.forEach(x=>x.value='');inputs[0].focus();};
+  function err(text){msg.style.color='#c47070';msg.textContent=text||'';box.classList.remove('err');void box.offsetWidth;box.classList.add('err');}
+
+  // ---- hashing (deterrent only; data still lives locally) ----
+  function simpleHash(s){let h=5381;for(let i=0;i<s.length;i++){h=((h<<5)+h)+s.charCodeAt(i);h|=0;}return(h>>>0).toString(16);}
+  async function hashCode(code,salt){
+    const data=salt+':'+code;
+    if(window.crypto&&crypto.subtle){
+      try{const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(data));
+        return[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}catch(e){}
+    }
+    return simpleHash(data);
+  }
+  function randSalt(){const a=new Uint8Array(16);
+    if(window.crypto&&crypto.getRandomValues)crypto.getRandomValues(a);else for(let i=0;i<16;i++)a[i]=Math.floor(Math.random()*256);
+    return[...a].map(b=>b.toString(16).padStart(2,'0')).join('');}
+
+  // ---- phases: set -> confirm (first run) | enter (returning) ----
+  let phase,firstCode='';
+  let stored=null;try{stored=JSON.parse(localStorage.getItem(LOCK)||'null');}catch(e){}
+  function setPhase(p){
+    phase=p;msg.textContent='';clearCode();
+    if(p==='set'){titleEl.textContent='Create a passcode';subEl.textContent='Pick 6 digits to lock Progressly';resetEl.style.display='none';}
+    if(p==='confirm'){titleEl.textContent='Confirm passcode';subEl.textContent='Enter it once more';resetEl.style.display='none';}
+    if(p==='enter'){titleEl.textContent='Welcome back';subEl.textContent='Enter your passcode';resetEl.style.display='block';}
+    setTimeout(()=>inputs[0].focus(),300);
+  }
+  async function onComplete(){
+    const code=getCode();
+    if(phase==='set'){firstCode=code;setPhase('confirm');return;}
+    if(phase==='confirm'){
+      if(code!==firstCode){err('Passcodes didn’t match');setPhase('set');return;}
+      const salt=randSalt();const hash=await hashCode(code,salt);
+      try{localStorage.setItem(LOCK,JSON.stringify({salt,hash}));}catch(e){}
+      stored={salt,hash};unlock();return;
+    }
+    if(phase==='enter'){
+      const hash=await hashCode(code,stored.salt);
+      if(hash===stored.hash)unlock();else err('Wrong passcode');
+    }
+  }
+  resetEl.addEventListener('click',()=>{
+    if(resetEl.dataset.confirm==='1'){localStorage.removeItem(LOCK);location.reload();}
+    else{resetEl.dataset.confirm='1';resetEl.textContent='Clears passcode (not your habits). Tap again';
+      setTimeout(()=>{resetEl.dataset.confirm='0';resetEl.textContent='Forgot passcode? Reset';},3500);}
+  });
+  setPhase(stored?'enter':'set');
+
+  // ---- unlock: reverse animation then fade to tracker ----
+  let running=true,reverse=false,revStart=0;
+  function unlock(){
+    msg.style.color='#7ad07a';msg.textContent='Unlocked';
+    reverse=true;revStart=performance.now();
+    setTimeout(()=>{
+      gate.classList.add('hide');document.body.classList.remove('locked');
+      setTimeout(()=>{running=false;gate.remove();},900);
+    },1600);
+  }
+
+  // ---- WebGL2 dot-matrix reveal (ported from the 21st.dev GLSL) ----
+  const canvas=document.getElementById('gateCanvas');
+  const gl=canvas.getContext('webgl2',{premultipliedAlpha:false,alpha:true});
+  if(!gl){canvas.style.display='none';return;}
+
+  const vsrc=`#version 300 es
+  precision mediump float;
+  in vec2 a_pos; uniform vec2 u_resolution; out vec2 fragCoord;
+  void main(){gl_Position=vec4(a_pos,0.0,1.0);fragCoord=(a_pos+1.0)*0.5*u_resolution;fragCoord.y=u_resolution.y-fragCoord.y;}`;
+
+  const fsrc=`#version 300 es
+  precision mediump float;
+  in vec2 fragCoord;
+  uniform float u_time; uniform float u_opacities[10]; uniform vec3 u_colors[6];
+  uniform float u_total_size; uniform float u_dot_size; uniform vec2 u_resolution;
+  uniform int u_reverse; uniform float u_speed;
+  out vec4 fragColor;
+  float PHI=1.61803398874989484820459;
+  float random(vec2 xy){return fract(tan(distance(xy*PHI,xy)*0.5)*xy.x);}
+  void main(){
+    vec2 st=fragCoord.xy;
+    st.x-=abs(floor((mod(u_resolution.x,u_total_size)-u_dot_size)*0.5));
+    st.y-=abs(floor((mod(u_resolution.y,u_total_size)-u_dot_size)*0.5));
+    float opacity=step(0.0,st.x);opacity*=step(0.0,st.y);
+    vec2 st2=vec2(float(int(st.x/u_total_size)),float(int(st.y/u_total_size)));
+    float frequency=5.0;float show_offset=random(st2);
+    float rand=random(st2*floor((u_time/frequency)+show_offset+frequency));
+    opacity*=u_opacities[int(rand*10.0)];
+    opacity*=1.0-step(u_dot_size/u_total_size,fract(st.x/u_total_size));
+    opacity*=1.0-step(u_dot_size/u_total_size,fract(st.y/u_total_size));
+    vec3 color=u_colors[int(show_offset*6.0)];
+    float asf=u_speed;
+    vec2 center_grid=u_resolution/2.0/u_total_size;
+    float dist_from_center=distance(center_grid,st2);
+    float t_intro=dist_from_center*0.01+(random(st2)*0.15);
+    float max_grid_dist=distance(center_grid,vec2(0.0,0.0));
+    float t_outro=(max_grid_dist-dist_from_center)*0.02+(random(st2+42.0)*0.2);
+    float cto;
+    if(u_reverse==1){cto=t_outro;opacity*=1.0-step(cto,u_time*asf);opacity*=clamp((step(cto+0.1,u_time*asf))*1.25,1.0,1.25);}
+    else{cto=t_intro;opacity*=step(cto,u_time*asf);opacity*=clamp((1.0-step(cto+0.1,u_time*asf))*1.25,1.0,1.25);}
+    fragColor=vec4(color,opacity);fragColor.rgb*=fragColor.a;
+  }`;
+
+  function compile(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(s));return s;}
+  const prog=gl.createProgram();
+  gl.attachShader(prog,compile(gl.VERTEX_SHADER,vsrc));
+  gl.attachShader(prog,compile(gl.FRAGMENT_SHADER,fsrc));
+  gl.linkProgram(prog);gl.useProgram(prog);
+
+  const quad=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,quad);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+  const aPos=gl.getAttribLocation(prog,'a_pos');gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,0,0);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+
+  const U=n=>gl.getUniformLocation(prog,n);
+  const cols=[[45,154,45],[140,220,140]]; // Progressly greens
+  const carr=[cols[0],cols[0],cols[0],cols[1],cols[1],cols[1]];
+  gl.uniform3fv(U('u_colors'),new Float32Array(carr.flatMap(c=>[c[0]/255,c[1]/255,c[2]/255])));
+  gl.uniform1fv(U('u_opacities'),new Float32Array([0.3,0.3,0.3,0.5,0.5,0.5,0.8,0.8,0.8,1.0]));
+  gl.uniform1f(U('u_total_size'),20.0);
+  gl.uniform1f(U('u_dot_size'),4.0);
+  const uTime=U('u_time'),uRes=U('u_resolution'),uRev=U('u_reverse'),uSpeed=U('u_speed');
+
+  function resize(){const dpr=Math.min(window.devicePixelRatio||1,2);
+    canvas.width=Math.floor(innerWidth*dpr);canvas.height=Math.floor(innerHeight*dpr);
+    gl.viewport(0,0,canvas.width,canvas.height);gl.uniform2f(uRes,canvas.width,canvas.height);}
+  window.addEventListener('resize',resize);resize();
+
+  const start=performance.now();
+  function frame(now){
+    if(!running)return;
+    let t;
+    if(reverse){t=(now-revStart)/1000;gl.uniform1i(uRev,1);gl.uniform1f(uSpeed,0.5);}
+    else{t=(now-start)/1000;gl.uniform1i(uRev,0);gl.uniform1f(uSpeed,0.4);}
+    gl.uniform1f(uTime,t);
+    gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES,0,6);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
