@@ -109,6 +109,25 @@ body{background:#0a0f0a;color:#e8f0e8;font-family:system-ui,sans-serif;padding:m
 .gate-reset{margin-top:28px;font-size:11px;color:rgba(232,240,232,.32);cursor:pointer;text-decoration:underline;user-select:none}
 .gate-reset:hover{color:rgba(232,240,232,.6)}
 body.locked{overflow:hidden;height:100vh}
+/* arc-reveal start page (after passcode) */
+#startPage{position:fixed;inset:0;z-index:990;overflow:hidden;background:#e8f0e8;display:none;opacity:0;transition:opacity .35s ease}
+#startPage.show{display:block;opacity:1}
+#startPage.dismiss{opacity:0;pointer-events:none;transition:opacity .5s ease}
+.sp-greet-wrap{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center}
+.sp-greet{user-select:none;padding:0 24px;text-align:center;font-size:clamp(44px,12vw,104px);font-weight:800;letter-spacing:-.02em;line-height:1;color:#0a0f0a;opacity:0}
+.sp-greet.in{animation:spIn .42s cubic-bezier(.22,1,.36,1) forwards}
+.sp-greet.out{animation:spOut .34s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes spIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-8px)}}
+.sp-curtain{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+.sp-landing{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:0 24px;opacity:0;pointer-events:none;transition:opacity .6s ease .15s}
+.sp-landing.in{opacity:1;pointer-events:auto}
+.sp-kicker{font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#2d7a2d}
+.sp-title{max-width:680px;font-size:clamp(30px,6vw,58px);font-weight:800;letter-spacing:-.02em;line-height:1.05;color:#e8f0e8}
+.sp-sub{max-width:440px;font-size:clamp(14px,2.4vw,18px);line-height:1.5;font-weight:300;color:rgba(232,240,232,.6)}
+.sp-btn{margin-top:8px;border:none;cursor:pointer;border-radius:999px;padding:14px 32px;font-size:15px;font-weight:600;background:#2d7a2d;color:#e8f0e8;transition:background .15s,transform .1s}
+.sp-btn:hover{background:#3a9a3a}.sp-btn:active{transform:scale(.97)}
+body.startlock{overflow:hidden;height:100vh}
 </style>
 </head>
 <body>
@@ -124,6 +143,20 @@ body.locked{overflow:hidden;height:100vh}
     <div class="code-box" id="codeBox"></div>
     <div class="gate-msg" id="gateMsg"></div>
     <div class="gate-reset" id="gateReset" style="display:none">Forgot passcode? Reset</div>
+  </div>
+</div>
+
+<!-- ARC-REVEAL START PAGE (plays after passcode) -->
+<div id="startPage" aria-label="Welcome">
+  <div class="sp-greet-wrap"><span class="sp-greet" id="spGreet"></span></div>
+  <svg class="sp-curtain" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <path id="spCurtain" d="M 0 110 Q 50 135 100 110 L 100 110 L 0 110 Z" fill="#0a0f0a"></path>
+  </svg>
+  <div class="sp-landing" id="spLanding">
+    <div class="sp-kicker">Progressly imperfect</div>
+    <h1 class="sp-title">Build your future, one day at a time.</h1>
+    <p class="sp-sub">A calm, honest habit tracker. Small reps, compounded — considered, fast, and built to last.</p>
+    <button type="button" class="sp-btn" id="spStartBtn">new project</button>
   </div>
 </div>
 
@@ -557,6 +590,7 @@ if('serviceWorker' in navigator){
     reverse=true;revStart=performance.now();
     setTimeout(()=>{
       gate.classList.add('hide');document.body.classList.remove('locked');
+      window.dispatchEvent(new CustomEvent('progressly:unlocked'));
       setTimeout(()=>{running=false;gate.remove();},900);
     },1600);
   }
@@ -643,6 +677,68 @@ if('serviceWorker' in navigator){
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+})();
+</script>
+
+<!-- ARC-REVEAL START PAGE LOGIC -->
+<script>
+(function(){
+  const GREETINGS=['build.','your.','future.','dreams.','with.','progressly.'];
+  const HOLD=520;        // ms each word is held
+  const REVEAL=1500;     // ms for the curtain sweep
+  const page=document.getElementById('startPage');
+  const greetEl=document.getElementById('spGreet');
+  const curtain=document.getElementById('spCurtain');
+  const landing=document.getElementById('spLanding');
+  const startBtn=document.getElementById('spStartBtn');
+  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Arc path: a quadratic-bezier chord (control 25 units below) that rises
+  // from y=110 (off-screen below) to y=-30 (off-screen above) as p:0→1.
+  function pathFor(p){const edge=110-p*140,c=edge+25;return 'M 0 '+edge+' Q 50 '+c+' 100 '+edge+' L 100 110 L 0 110 Z';}
+  // cubic-bezier(.85,0,.15,1) easing — match the original component.
+  function bz(a,b,t){const u=1-t;return 3*u*u*t*a+3*u*t*t*b+t*t*t;}
+  function ease(t){let lo=0,hi=1,m=t;for(let i=0;i<24;i++){m=(lo+hi)/2;if(bz(0.85,0.15,m)<t)lo=m;else hi=m;}return bz(0,1,m);}
+
+  let idx=0,timer=null,raf=null;
+  function showWord(){
+    greetEl.textContent=GREETINGS[Math.min(idx,GREETINGS.length-1)];
+    greetEl.classList.remove('out','in');void greetEl.offsetWidth;greetEl.classList.add('in');
+  }
+  function nextWord(){
+    if(idx>=GREETINGS.length-1){
+      timer=setTimeout(()=>{greetEl.classList.remove('in');greetEl.classList.add('out');revealCurtain();},HOLD+220);
+      return;
+    }
+    timer=setTimeout(()=>{
+      greetEl.classList.remove('in');greetEl.classList.add('out');
+      setTimeout(()=>{idx++;showWord();nextWord();},340);
+    },HOLD);
+  }
+  function revealCurtain(){
+    const t0=performance.now();
+    (function frame(now){
+      const p=Math.min((now-t0)/REVEAL,1);
+      curtain.setAttribute('d',pathFor(ease(p)));
+      if(p<1)raf=requestAnimationFrame(frame);
+      else landing.classList.add('in');
+    })(t0);
+  }
+  function play(){
+    document.body.classList.add('startlock');
+    page.classList.add('show');
+    if(reduce){curtain.setAttribute('d',pathFor(1));landing.classList.add('in');return;}
+    showWord();nextWord();
+  }
+  function enterTracker(){
+    if(timer)clearTimeout(timer);if(raf)cancelAnimationFrame(raf);
+    page.classList.add('dismiss');
+    document.body.classList.remove('startlock');
+    window.scrollTo(0,0);
+    setTimeout(()=>page.remove(),520);
+  }
+  startBtn.addEventListener('click',enterTracker);
+  window.addEventListener('progressly:unlocked',play,{once:true});
 })();
 </script>
 </body>
