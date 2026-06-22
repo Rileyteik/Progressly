@@ -1,5 +1,5 @@
 // Progressly service worker — caches the app shell so it works fully offline.
-const CACHE = 'progressly-v4';
+const CACHE = 'progressly-v5';
 const ASSETS = [
   './',
   './index.html',

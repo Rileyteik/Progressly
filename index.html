@@ -552,36 +552,18 @@ if('serviceWorker' in navigator){
     if(window.crypto&&crypto.getRandomValues)crypto.getRandomValues(a);else for(let i=0;i<16;i++)a[i]=Math.floor(Math.random()*256);
     return[...a].map(b=>b.toString(16).padStart(2,'0')).join('');}
 
-  // ---- phases: set -> confirm (first run) | enter (returning) ----
-  let phase,firstCode='';
-  let stored=null;try{stored=JSON.parse(localStorage.getItem(LOCK)||'null');}catch(e){}
-  function setPhase(p){
-    phase=p;msg.textContent='';clearCode();
-    if(p==='set'){titleEl.textContent='Create a passcode';subEl.textContent='Pick 6 digits to lock Progressly';resetEl.style.display='none';}
-    if(p==='confirm'){titleEl.textContent='Confirm passcode';subEl.textContent='Enter it once more';resetEl.style.display='none';}
-    if(p==='enter'){titleEl.textContent='Welcome back';subEl.textContent='Enter your passcode';resetEl.style.display='block';}
+  // ---- fixed passcode (deterrent only — repo is public, so this code is readable in source) ----
+  const FIXED='474747';
+  function setPhase(){
+    msg.textContent='';clearCode();
+    titleEl.textContent='Welcome back';subEl.textContent='Enter your passcode';
     setTimeout(()=>inputs[0].focus(),300);
   }
-  async function onComplete(){
-    const code=getCode();
-    if(phase==='set'){firstCode=code;setPhase('confirm');return;}
-    if(phase==='confirm'){
-      if(code!==firstCode){err('Passcodes didn’t match');setPhase('set');return;}
-      const salt=randSalt();const hash=await hashCode(code,salt);
-      try{localStorage.setItem(LOCK,JSON.stringify({salt,hash}));}catch(e){}
-      stored={salt,hash};unlock();return;
-    }
-    if(phase==='enter'){
-      const hash=await hashCode(code,stored.salt);
-      if(hash===stored.hash)unlock();else err('Wrong passcode');
-    }
+  function onComplete(){
+    if(getCode()===FIXED)unlock();
+    else{err('Wrong passcode');clearCode();}
   }
-  resetEl.addEventListener('click',()=>{
-    if(resetEl.dataset.confirm==='1'){localStorage.removeItem(LOCK);location.reload();}
-    else{resetEl.dataset.confirm='1';resetEl.textContent='Clears passcode (not your habits). Tap again';
-      setTimeout(()=>{resetEl.dataset.confirm='0';resetEl.textContent='Forgot passcode? Reset';},3500);}
-  });
-  setPhase(stored?'enter':'set');
+  setPhase();
 
   // ---- unlock: reverse animation then fade to tracker ----
   let running=true,reverse=false,revStart=0;
